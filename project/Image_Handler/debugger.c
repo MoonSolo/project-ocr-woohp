@@ -41,6 +41,9 @@ static void create_debug_structure(const char *base_folder)
     
     create_directory_recursive(base_folder);
     
+    snprintf(path, sizeof(path), "%s/0_rotation", base_folder);
+    create_directory_recursive(path);
+    
     snprintf(path, sizeof(path), "%s/1_preprocessing", base_folder);
     create_directory_recursive(path);
     
@@ -58,6 +61,9 @@ static void create_debug_structure(const char *base_folder)
     create_directory_recursive(path);
     
     snprintf(path, sizeof(path), "%s/5_letters", base_folder);
+    create_directory_recursive(path);
+    
+    snprintf(path, sizeof(path), "%s/4_grid_cells", base_folder);
     create_directory_recursive(path);
 }
 
@@ -87,14 +93,16 @@ int main(int argc, char *argv[])
     snprintf(debug_folder, sizeof(debug_folder), "DEBUG/%s", base_name);
     
     printf("=== OCR Image Processing Pipeline ===\n");
-    printf("Input: %s\n", image_path);
+    printf("Input:    %s\n", image_path);
     printf("Debug folder: %s\n\n", debug_folder);
     
     create_debug_structure(debug_folder);
     
-    char preprocess_folder[2048], grid_folder[2048];
-    char word_folder[2048], letter_folder[2048];
+    char rotation_folder[2048], preprocess_folder[2048], grid_folder[2048];
+    char word_folder[2048], letter_folder[2048], grid_cells_folder[2048];
     
+    snprintf(rotation_folder, sizeof(rotation_folder),
+             "%s/0_rotation", debug_folder);
     snprintf(preprocess_folder, sizeof(preprocess_folder),
              "%s/1_preprocessing", debug_folder);
     snprintf(grid_folder, sizeof(grid_folder),
@@ -103,16 +111,19 @@ int main(int argc, char *argv[])
              "%s/3_word_list", debug_folder);
     snprintf(letter_folder, sizeof(letter_folder),
              "%s/5_letters", debug_folder);
+    snprintf(grid_cells_folder, sizeof(grid_cells_folder),
+             "%s/4_grid_cells", debug_folder);
     
+    set_rotation_debug_folder(rotation_folder);
     set_preprocess_debug_folder(preprocess_folder);
     set_grid_detection_debug_folder(grid_folder);
     set_grid_size_debug_folder(grid_folder);
-    set_cell_extract_debug_folder(grid_folder);
+    set_cell_extraction_debug_folder(grid_cells_folder);
     set_word_extract_debug_folder(word_folder);
     
     MagickWandGenesis();
     
-    printf("[1/6] Loading image...\n");
+    printf("[1/7] Loading image...\n");
     MagickWand *input = NewMagickWand();
     if (MagickReadImage(input, image_path) == MagickFalse)
     {
@@ -122,24 +133,35 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    printf("[2/6] Preprocessing image...\n");
-    MagickWand *preprocessed = preprocess_image(input);
-    if (!preprocessed)
+    printf("[2/7] Automatic rotation correction...\n");
+    MagickWand *rotated = auto_rotate_image(input);
+    DestroyMagickWand(input);
+    
+    if (! rotated)
     {
-        fprintf(stderr, "Preprocessing failed\n");
-        DestroyMagickWand(input);
+        fprintf(stderr, "Rotation correction failed\n");
         MagickWandTerminus();
         return 1;
     }
     
-    printf("[3/6] Detecting grid...\n");
-    GridDetectionResult grid_result = detect_grid(input);
+    printf("[3/7] Preprocessing image...\n");
+    MagickWand *preprocessed = preprocess_image(rotated);
+    if (!preprocessed)
+    {
+        fprintf(stderr, "Preprocessing failed\n");
+        DestroyMagickWand(rotated);
+        MagickWandTerminus();
+        return 1;
+    }
     
-    if (!grid_result.detected)
+    printf("[4/7] Detecting grid...\n");
+    GridDetectionResult grid_result = detect_grid(rotated);
+    
+    if (! grid_result.detected)
     {
         fprintf(stderr, "Grid detection failed\n");
         DestroyMagickWand(preprocessed);
-        DestroyMagickWand(input);
+        DestroyMagickWand(rotated);
         MagickWandTerminus();
         return 1;
     }
@@ -148,20 +170,26 @@ int main(int argc, char *argv[])
            grid_result.x, grid_result.y,
            grid_result.width, grid_result.height);
     
-    MagickWand *cropped_grid = CloneMagickWand(input);
+    MagickWand *grid_for_cells = CloneMagickWand(rotated);
+    MagickCropImage(grid_for_cells, grid_result.width, grid_result.height,
+                   grid_result.x, grid_result.y);
+    MagickResetImagePage(grid_for_cells, "");
+    
+    MagickWand *cropped_grid = CloneMagickWand(rotated);
     MagickCropImage(cropped_grid, grid_result.width, grid_result.height,
                    grid_result.x, grid_result.y);
     MagickResetImagePage(cropped_grid, "");
     
-    printf("[4/6] Detecting grid size and extracting cells...\n");
+    printf("[5/7] Detecting grid size and extracting cells...\n");
     GridSizeResult size_result = detect_grid_size(cropped_grid);
     
-    if (!size_result.success)
+    if (!size_result. success)
     {
         fprintf(stderr, "Grid size detection failed\n");
+        DestroyMagickWand(grid_for_cells);
         DestroyMagickWand(cropped_grid);
         DestroyMagickWand(preprocessed);
-        DestroyMagickWand(input);
+        DestroyMagickWand(rotated);
         MagickWandTerminus();
         return 1;
     }
@@ -169,56 +197,43 @@ int main(int argc, char *argv[])
     printf("      Detected %zux%zu grid\n",
            size_result.rows, size_result.cols);
     
-    CellExtractionResult cells = extract_cells(cropped_grid,
-                                               size_result.rows,
-                                               size_result.cols,
-                                               size_result.avg_cell_width,
-                                               size_result.avg_cell_height);
+    CellExtractionResult cells = extract_cells(grid_for_cells,
+                                               (int)size_result.rows,
+                                               (int)size_result.cols);
     
-    if (cells.success)
+    if (!cells.success)
     {
-        printf("      Extracted %zu cells\n", cells.total_cells);
-        
-        char cell_folder[2048];
-        snprintf(cell_folder, sizeof(cell_folder),
-                 "%s/2_grid_detection/cell_extraction", debug_folder);
-        
-        for (size_t row = 0; row < cells.rows; row++)
-        {
-            for (size_t col = 0; col < cells.cols; col++)
-            {
-                size_t idx = row * cells.cols + col;
-                if (cells.cells[idx])
-                {
-                    char cell_path[2048];
-                    snprintf(cell_path, sizeof(cell_path),
-                             "%s/GRID_%zu_%zu.png",
-                             cell_folder, row, col);
-                    MagickWriteImage(cells.cells[idx], cell_path);
-                }
-            }
-        }
+        fprintf(stderr, "Cell extraction failed\n");
+        DestroyMagickWand(grid_for_cells);
+        DestroyMagickWand(cropped_grid);
+        DestroyMagickWand(preprocessed);
+        DestroyMagickWand(rotated);
+        MagickWandTerminus();
+        return 1;
     }
     
-    printf("[5/6] Extracting word list...\n");
+    printf("      Extracted %zu cells (64x64 each)\n", cells.total_cells);
+    
+    printf("[6/7] Extracting word list...\n");
     WordListRegionResult word_list_result =
-        extract_word_list_with_grid(input,
+        extract_word_list_with_grid(rotated,
                                     grid_result.x, grid_result.y,
                                     grid_result.width, grid_result.height);
     
     if (!word_list_result.success)
     {
         fprintf(stderr, "Word list extraction failed\n");
-        free_cell_extraction_result(&cells);
+        free_cells(&cells);
+        DestroyMagickWand(grid_for_cells);
         DestroyMagickWand(cropped_grid);
         DestroyMagickWand(preprocessed);
-        DestroyMagickWand(input);
+        DestroyMagickWand(rotated);
         MagickWandTerminus();
         return 1;
     }
     
     printf("      Word list at (%d, %d), size %dx%d\n",
-           word_list_result.x, word_list_result.y,
+           word_list_result. x, word_list_result. y,
            word_list_result.width, word_list_result.height);
     
     char word_list_path[2048];
@@ -238,10 +253,11 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "Word extraction failed\n");
         free_word_list_result(&word_list_result);
-        free_cell_extraction_result(&cells);
+        free_cells(&cells);
+        DestroyMagickWand(grid_for_cells);
         DestroyMagickWand(cropped_grid);
         DestroyMagickWand(preprocessed);
-        DestroyMagickWand(input);
+        DestroyMagickWand(rotated);
         MagickWandTerminus();
         return 1;
     }
@@ -256,7 +272,7 @@ int main(int argc, char *argv[])
         MagickWriteImage(words_result.words[w], word_path);
     }
     
-    printf("[6/6] Segmenting letters...\n");
+    printf("[7/7] Segmenting letters...\n");
     int total_letters = 0;
     
     for (size_t w = 0; w < words_result.word_count; w++)
@@ -286,10 +302,11 @@ int main(int argc, char *argv[])
     
     free_word_extraction_result(&words_result);
     free_word_list_result(&word_list_result);
-    free_cell_extraction_result(&cells);
+    free_cells(&cells);
+    DestroyMagickWand(grid_for_cells);
     DestroyMagickWand(cropped_grid);
     DestroyMagickWand(preprocessed);
-    DestroyMagickWand(input);
+    DestroyMagickWand(rotated);
     
     free(base_name_full);
     MagickWandTerminus();
@@ -297,6 +314,8 @@ int main(int argc, char *argv[])
     printf("\n=== Pipeline Complete ===\n");
     printf("\nDebug output structure:\n");
     printf("%s/\n", debug_folder);
+    printf("├── 0_rotation/\n");
+    printf("│   └── rotation_corrected.png\n");
     printf("├── 1_preprocessing/\n");
     printf("│   ├── 01_grayscale.png\n");
     printf("│   ├── 02_normalized.png\n");
@@ -307,15 +326,15 @@ int main(int argc, char *argv[])
     printf("│   ├── histogram_horizontal.png\n");
     printf("│   ├── histogram_vertical.png\n");
     printf("│   ├── character_detection_strategy2.png\n");
-    printf("│   ├── preprocessed.png\n");
-    printf("│   └── cell_extraction/\n");
-    printf("│       ├── GRID_0_0.png ... GRID_%zu_%zu.png\n",
+    printf("│   └── preprocessed.png\n");
+    printf("├── 4_grid_cells/\n");
+    printf("│   └── GRID_r0_c0.png ...  GRID_r%zu_c%zu.png (64x64 each)\n",
            size_result.rows - 1, size_result.cols - 1);
     printf("├── 3_word_list/\n");
     printf("│   └── word_list.png\n");
     printf("├── 4_words/\n");
-    printf("│   ├── word_00.png ... word_%02zu.png\n",
-           words_result.word_count - 1);
+    printf("│   └── word_00.png...  word_%02zu.png\n",
+           words_result. word_count - 1);
     printf("└── 5_letters/\n");
     printf("    └── WORD_XX_YY.png (%d letters total)\n", total_letters);
     

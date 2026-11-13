@@ -1,13 +1,20 @@
 CC = gcc
-CFLAGS = -Wall -O2
-LDFLAGS = -lm
-TARGET = neural_network_nxor
-SRCS = neural_network_nxor.c
+CFLAGS = -Wall -Wextra -O2 -lm
 
-all: $(TARGET)
+SRC = main_neural_network.c neural_network.c image_converter.c png_to_pgm.c
+OBJ = $(SRC:.c=.o)
+EXEC = result
 
-$(TARGET): $(SRCS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) $(LDFLAGS)
+all: $(EXEC)
+
+$(EXEC): $(OBJ)
+	$(CC) $(OBJ) -o $(EXEC) $(CFLAGS)
+
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(OBJ) $(EXEC)
+
+re: clean all
+

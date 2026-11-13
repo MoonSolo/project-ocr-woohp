@@ -84,7 +84,7 @@ static void save_histogram_image(int *hist, int len, const char *name,
     MagickDrawImage(wand, draw);
     
     char filename[2048];
-    snprintf(filename, sizeof(filename), "%s/grid_detection/histogram_%s.png",
+    snprintf(filename, sizeof(filename), "%s/histogram_%s.png",
              debug_folder, name);
     MagickWriteImage(wand, filename);
     
@@ -130,7 +130,7 @@ static int find_significant_gaps(int *hist, int len, int threshold,
     {
         int gap_size = len - gap_start;
         gaps[gap_count].start = gap_start;
-        gaps[gap_count].size = gap_size;
+        gaps[gap_count]. size = gap_size;
         gap_count++;
     }
     
@@ -247,7 +247,7 @@ static int fallback_sliding_window(unsigned char *pixels, int width,
                     Rectangle region = extract_bounds(pixels, width, height,
                                                      x, x + w, y, y + h);
                     
-                    if (region.area > 0)
+                    if (region. area > 0)
                     {
                         float score = score_as_grid(region, width, height);
                         
@@ -280,7 +280,7 @@ static void trim_uniform_borders(MagickWand *cropped, int *x_offset,
         return;
     
     MagickWand *temp = CloneMagickWand(cropped);
-    if (!temp)
+    if (! temp)
         return;
     
     MagickTransformImageColorspace(temp, GRAYColorspace);
@@ -501,7 +501,7 @@ GridDetectionResult detect_grid(MagickWand *input)
         final_h = height - final_y;
     
     MagickWand *cropped = CloneMagickWand(input);
-    if (!cropped ||
+    if (! cropped ||
         MagickCropImage(cropped, final_w, final_h,
                        final_x, final_y) == MagickFalse)
     {
@@ -520,7 +520,7 @@ GridDetectionResult detect_grid(MagickWand *input)
     trim_uniform_borders(cropped, &refined_x, &refined_y, &refined_w, &refined_h);
     
     if (refined_x != final_x || refined_y != final_y || 
-        refined_w != final_w || refined_h != final_h)
+        refined_w != final_w || refined_h != refined_h)
     {
         DestroyMagickWand(cropped);
         

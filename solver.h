@@ -25,5 +25,6 @@ void draw_crossword(const char *filepath,
 
 void count_lines_columns(const char *filepath,
                          int dimensions[2]);
+void solve_and_mark(const char *mots_path, const char *grid_path, const char *image_path);
 
 #endif

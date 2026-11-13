@@ -57,9 +57,9 @@ static int detect_letter_boundaries_by_gaps(unsigned char *pixels,
     {
         int is_gap = is_complete_vertical_gap(pixels, width, height, x);
         
-        if (!is_gap)
+        if (! is_gap)
         {
-            if (!in_letter)
+            if (! in_letter)
             {
                 letter_start = x;
                 in_letter = 1;
@@ -94,7 +94,7 @@ static int filter_noise_regions(Region *letter_regions, int letter_count,
     
     for (int i = 0; i < letter_count; i++)
     {
-        int width = letter_regions[i].end - letter_regions[i].start;
+        int width = letter_regions[i]. end - letter_regions[i]. start;
         
         if (width >= min_width)
         {
@@ -173,6 +173,29 @@ static int split_wide_letters(unsigned char *pixels, int img_width,
     }
     
     return letter_count;
+}
+
+static MagickBooleanType resize_letter_to_64x64(MagickWand *letter)
+{
+    if (!letter) return MagickFalse;
+    
+    size_t width = MagickGetImageWidth(letter);
+    size_t height = MagickGetImageHeight(letter);
+    
+    if (width < 2 || height < 2)
+    {
+        PixelWand *white = NewPixelWand();
+        PixelSetColor(white, "white");
+        MagickNewImage(letter, 64, 64, white);
+        DestroyPixelWand(white);
+        return MagickTrue;
+    }
+
+    MagickResizeImage(letter, 64, 64, LanczosFilter);
+    
+    MagickSharpenImage(letter, 0, 0.8);
+    
+    return MagickTrue;
 }
 
 LetterExtractionResult split_word_into_letters(MagickWand *word_img,
@@ -327,7 +350,7 @@ LetterExtractionResult split_word_into_letters(MagickWand *word_img,
             return result;
         }
         
-        if (MagickCropImage(result.letters[i], letter_width, letter_height,
+        if (MagickCropImage(result. letters[i], letter_width, letter_height,
                            letter_x, top) == MagickFalse)
         {
             for (int j = 0; j <= i; j++)
@@ -339,6 +362,11 @@ LetterExtractionResult split_word_into_letters(MagickWand *word_img,
         }
         
         MagickResetImagePage(result.letters[i], "");
+        
+        if (resize_letter_to_64x64(result.letters[i]) == MagickFalse)
+        {
+            fprintf(stderr, "[WARN] Failed to resize letter %d to 64x64\n", i);
+        }
     }
     
     free(pixels);

@@ -20,7 +20,8 @@ DEPFLAGS = -MMD -MP
 PRETREATMENT_SRC      := $(wildcard Pretreatment/*.c)
 GRID_DETECTION_SRC    := $(wildcard Treatment/grid_detection/*.c)
 TREATMENT_SRC         := Treatment/grid_size.c \
-                         Treatment/cell_extract.c
+                         Treatment/cell_extract.c \
+                         Treatment/cell_reprocess.c
 WORD_DETECTION_SRC    := Treatment/word_detection/extract_word.c \
                          Treatment/word_detection/word_segmentation.c \
                          Treatment/word_detection/projection.c \

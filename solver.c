@@ -373,7 +373,7 @@ void search_word(const char *word,
     }
 }
 
-
+/*
 int main(int argc, char *argv[])
 {
     if (argc < 3)
@@ -415,5 +415,4 @@ int main(int argc, char *argv[])
     return 0;
 
 }
-
-
+*/
