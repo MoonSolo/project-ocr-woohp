@@ -1,0 +1,155 @@
+===============- README FOR THE IMAGE HANDLING -===============================
+
+INTRODUCTION :
+
+Hey guys ! 
+This README will help you understand how I worked on the Image Handling part
+of the project. 
+
+It will contain instructions to test the code for yourself and some 
+explanations of the code I wrote. 
+I'll still leave some quick explanations in the comments of the files so feel
+free to check them out.
+
+Of course, I'll continue updating this README until I am finished with my work!
+
+---- TABLE OF CONTENTS ----
+
+-> [LINE START] - [LINE END] : ImageMagick installation guide (Required for 
+testing the code).
+
+-> [LINE START] - [LINE END] : Makefile usage and content to make your own.
+
+-> [LINE START] - [LINE END] : Test the code yourself ! Options to test each
+function independantly.
+
+-> [LINE START] - [LINE END] : Pretreatment explanations.
+
+-> [LINE START] - [LINE END] : Treatment explanations.
+
+-> [LINE START] - [LINE END] : Method summary.
+
+-> [LINE START] - [LINE END] : Conclusion.
+
+
+
+
+
+
+---- ImageMagick INSTALLATION GUIDE ----
+
+Alright fellas, just a few commands to run : 
+
+-> For Ubuntu / Debian users :
+	sudo apt update
+	sudo apt upgrade
+	sudo apt install imagemagick libmagickwand-dev
+
+-> For Fedora users :
+	sudo dnf install ImageMagick ImageMagick-devel
+
+-> For Arch Linux users (take a shower first) : 
+	sudo pacman -S imagemagick
+
+
+
+Quick verification ! 
+run : 
+	pkg-config --cflags --libs MagickWand
+
+You should see a few flags like these : 
+	-I/usr/include/ImageMagick-7 -lMagickWand-7.Q16HDRI -lMagickCore-7.Q16HDRI
+
+
+
+Now let's test it by compiling a C program ! 
+Create a test.c file and a test.png file (any image you want)
+
+Now add this code to your test.c file : 
+
+	#include <wand/MagickWand.h>
+	#include <stdio.h>
+
+	int main() 
+	{
+		MagickWandGenesis();
+		MagickWand *wand = NewMagickWand();
+
+		if (MagickReadImage(wand, "test.png") == MagickFalse) 
+		{
+		    printf("Failed to open image\n");
+			return 1;
+		}
+
+		printf("Image loaded successfully!\n");
+		DestroyMagickWand(wand);
+		MagickWandTerminus();
+		return 0;
+	}
+
+Compile it with : 
+	gcc test.c -o test $(pkg-config --cflags --libs MagickWand)
+
+And simply run it with : 
+	./test
+
+You should get this : "Image loaded successfully!" 
+or this "Failed to open image" (If you did not create a test.png file)
+
+Anyways, if there isn't any error message, you should be good to go !
+
+Our gadget is installed ! Thanks Jerry !
+
+
+
+
+
+
+---- MAKEFILE ----
+
+[NOT IMPLEMENTED]
+
+
+
+---- TESTING ----
+
+--> preprocess.c : 
+
+Alright let's test preprocess.c ! 
+There should be a debugger.c file containing the main() function for this
+section of the code.
+
+Make sure you have ImageMagick installed on your device or you won't be able 
+to test it. 
+Take a look at the installation instructions.
+
+Now, to compile the code, use :
+	gcc -g -o debugger debugger.c preprocess.c $(pkg-config --cflags --libs MagickWand)
+
+then just run :
+	./debugger [TEST FILE]
+(there should be a test.png file in the repo).
+
+This is the output you should get for : 
+
+	load_image() : 
+		[DEBUG] : Initializing ImageMagick
+		[DEBUG] : Called load_image().
+		[DEBUG] : load_image() operated succesfully without any error occuring.
+		[DEBUG] : Loaded image 735 x 719
+		[DEBUG] : Image format: PNG
+		[DEBUG] : Success !!
+		[DEBUG] : Terminating ImageMagick - Make sure not to call it without re-initializing it !
+	
+
+	preprocess_image() :
+		[NOT IMPLEMENTED]
+
+
+--> process.c : [NOT IMPLEMENTED]
+
+
+
+---- PRETREATMENT ----
+
+TODO
