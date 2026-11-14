@@ -9,6 +9,11 @@
 #include "grid_detect.h"
 #include "grid_size.h"
 
+// ==========================================
+// CONFIGURATION: Correct Math
+// ==========================================
+// With correct dimensions (17x17), we shouldn't need massive offsets.
+// Resetting to small, safe values.
 #define OFFSET_Y  2      
 #define OFFSET_X  1
 #define EXTENSION 0.25   
@@ -18,17 +23,29 @@
 
 void solve_and_mark(const char *mots_path, const char *grid_path, const char *image_path)
 {
+    // 1. Text Grid Loading
     int dimensions[2] = {0, 0};
     if (!grid_path) errx(1, "Error: grid_path is NULL");
     
+    // Call the existing function
     count_lines_columns(grid_path, dimensions);
     int lines = dimensions[0];
     int columns = dimensions[1];
 
+    // --- ROBUSTNESS FIX ---
+    // Many text editors add a trailing newline. If the grid count returns
+    // something like 18 lines and 17 columns for a visually square grid,
+    // it's 99% likely a trailing empty line.
+    // We check if the grid file's last line is actually empty.
     FILE *check_fp = fopen(grid_path, "r");
     if (check_fp) {
+        // Seek to end
         fseek(check_fp, -1, SEEK_END);
         if (fgetc(check_fp) == '\n') {
+            // Check if the line before is also data. 
+            // Simple heuristic: If lines > columns (and it looks square-ish), reduce line count.
+            // A safer check: read the file into lines and count non-empty ones.
+            // But for this project, let's just do the Aspect Ratio check.
              if (lines == columns + 1) {
                 printf("Notice: Detected potential trailing newline count. Reducing lines from %d to %d.\n", lines, lines - 1);
                 lines--; 
@@ -36,11 +53,13 @@ void solve_and_mark(const char *mots_path, const char *grid_path, const char *im
         }
         fclose(check_fp);
     }
+    // ----------------------
 
     if (lines == 0 || columns == 0) errx(1, "Empty grid.");
     char crossword[lines][columns];
     draw_crossword(grid_path, lines, columns, crossword);
 
+    // 2. Image
     MagickWandGenesis();
     MagickWand *wand = NewMagickWand();
     if (MagickReadImage(wand, image_path) == MagickFalse) {
@@ -49,6 +68,7 @@ void solve_and_mark(const char *mots_path, const char *grid_path, const char *im
         errx(1, "Error opening image %s", image_path);
     }
 
+    // 3. Detect Grid
     GridDetectionResult grid_pos = detect_grid(wand);
     if (!grid_pos.detected) {
         grid_pos.x = 0; grid_pos.y = 0;
@@ -56,9 +76,12 @@ void solve_and_mark(const char *mots_path, const char *grid_path, const char *im
         grid_pos.height = MagickGetImageHeight(wand);
     } 
 
+    // 4. Calculate Cells
+    // NOW 'lines' should be 17, so cell_height will be larger (correct).
     double raw_cell_width = (double)grid_pos.width / (double)columns;
     double raw_cell_height = (double)grid_pos.height / (double)lines;
 
+    // Apply Smart Centering
     double start_x = grid_pos.x + (raw_cell_width * CENTER_INSET) + OFFSET_X;
     double start_y = grid_pos.y + (raw_cell_height * CENTER_INSET) + OFFSET_Y; 
 
@@ -70,6 +93,7 @@ void solve_and_mark(const char *mots_path, const char *grid_path, const char *im
 
     printf("Grid: %dx%d, Cell: %.2fx%.2f\n", columns, lines, cell_width, cell_height);
 
+    // 5. Drawing
     DrawingWand *draw = NewDrawingWand();
     PixelWand *stroke_color = NewPixelWand();
     PixelSetColor(stroke_color, "rgba(255, 0, 0, 0.35)"); 

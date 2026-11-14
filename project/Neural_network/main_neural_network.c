@@ -43,7 +43,8 @@ void get_letter_dir_from_index(int index, char *buffer) {
 }
 
 char get_char_from_index(int index) {
-    return 'A' + (index % 26);
+    if (index < 26) return 'A' + index;
+    return 'a' + (index - 26);
 }
 
 void prepare_data_items(DataItem *items, int start_file_index, int num_files) {
